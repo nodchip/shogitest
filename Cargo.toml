@@ -1,0 +1,12 @@
+[package]
+name = "shogitest"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4.42"
+crossbeam-channel = "0.5.15"
+flexi_logger = "0.31.7"
+itertools = "0.14.0"
+lazy_static = "1.5.0"
+log = "0.4.28"
