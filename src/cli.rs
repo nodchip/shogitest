@@ -61,10 +61,37 @@ pub struct PgnOutOptions {
     pub track_latency: bool,
 }
 
+fn parse_engine_option(engine: &mut EngineOptions, name: &str, value: &str) {
+    match name {
+        "name" => {
+            engine.builder.name = Some(String::from(value));
+        }
+        "dir" => {
+            engine.builder.dir = String::from(value);
+        }
+        "cmd" => {
+            engine.builder.cmd = String::from(value);
+        }
+        "tc" => {
+            if let Some(tc) = tc::TimeControl::parse(&value) {
+                engine.time_control = tc;
+            } else {
+                eprint!("Invalid time control specification {value}");
+            }
+        }
+        _ => {
+            dbg!(&name);
+            dbg!(&value);
+        }
+    }
+}
+
 pub fn parse() -> Option<CliOptions> {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
     let mut options = CliOptions::default();
+    let mut each_options = Vec::<(String, String)>::new();
+
     let mut it = args.iter().peekable();
     while let Some(flag) = it.next() {
         match flag.as_str() {
@@ -85,30 +112,24 @@ pub fn parse() -> Option<CliOptions> {
                     };
                     it.next(); // consume token
 
-                    match name {
-                        "name" => {
-                            engine.builder.name = Some(String::from(value));
-                        }
-                        "dir" => {
-                            engine.builder.dir = String::from(value);
-                        }
-                        "cmd" => {
-                            engine.builder.cmd = String::from(value);
-                        }
-                        "tc" => {
-                            if let Some(tc) = tc::TimeControl::parse(&value) {
-                                engine.time_control = tc;
-                            } else {
-                                eprint!("Invalid time control specification {value}");
-                            }
-                        }
-                        _ => {
-                            dbg!(&name);
-                            dbg!(&value);
-                        }
-                    }
+                    parse_engine_option(&mut engine, &name, &value);
                 }
                 options.engines.push(engine);
+            }
+
+            "-each" => {
+                loop {
+                    let Some(option) = it.peek() else { break };
+                    if option.starts_with("-") {
+                        break;
+                    };
+                    let Some((name, value)) = option.split_once('=') else {
+                        break;
+                    };
+                    it.next(); // consume token
+
+                    each_options.push((name.to_string(), value.to_string()));
+                }
             }
 
             "-openings" => {
@@ -243,6 +264,12 @@ pub fn parse() -> Option<CliOptions> {
             _ => {
                 dbg!(&flag);
             }
+        }
+    }
+
+    for (name, value) in each_options {
+        for engine in &mut options.engines {
+            parse_engine_option(engine, &name, &value);
         }
     }
 
