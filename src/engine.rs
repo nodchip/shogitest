@@ -32,6 +32,7 @@ pub struct EngineBuilder {
     pub dir: String,
     pub cmd: String,
     pub name: Option<String>,
+    pub usi_options: Vec<(String, String)>,
 }
 
 impl EngineBuilder {
@@ -74,6 +75,10 @@ impl EngineBuilder {
                 },
                 _ => {}
             }
+        }
+
+        for (k, v) in &self.usi_options {
+            engine.write_line(&format!("setoption name {k} value {v}"))?;
         }
 
         Ok(engine)

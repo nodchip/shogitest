@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::engine;
 use crate::tc;
 
@@ -92,11 +94,44 @@ fn parse_engine_option(engine: &mut EngineOptions, name: &str, value: &str) {
             engine.builder.cmd = String::from(value);
         }
         "tc" => {
+            if engine.time_control != tc::TimeControl::None {
+                eprint!("Warning; Specifying multiple time controls!");
+            }
             if let Some(tc) = tc::TimeControl::parse(&value) {
                 engine.time_control = tc;
             } else {
                 eprint!("Invalid time control specification {value}");
             }
+        }
+        "st" => {
+            if engine.time_control != tc::TimeControl::None {
+                eprint!("Warning; Specifying multiple time controls!");
+            }
+            match value.parse::<u64>() {
+                Ok(value) => {
+                    engine.time_control = tc::TimeControl::MoveTime(Duration::from_millis(value));
+                }
+                Err(_) => {
+                    eprintln!("Expected number for st option");
+                }
+            }
+        }
+        "nodes" => {
+            if engine.time_control != tc::TimeControl::None {
+                eprint!("Warning; Specifying multiple time controls!");
+            }
+            match value.parse::<u64>() {
+                Ok(value) => engine.time_control = tc::TimeControl::Nodes(value),
+                Err(_) => {
+                    eprintln!("Expected number for st option");
+                }
+            }
+        }
+        name if let Some(optionname) = name.strip_prefix("option.") => {
+            engine
+                .builder
+                .usi_options
+                .push((optionname.to_string(), value.to_string()));
         }
         _ => {
             dbg!(&name);
@@ -117,6 +152,16 @@ pub fn parse() -> Option<CliOptions> {
             "-version" | "--version" => {
                 println!("Shogitest version 0.0.0");
                 return None;
+            }
+
+            "-event" => {
+                let Some(value) = it.next() else { break };
+                options.meta.event_name = value.to_string();
+            }
+
+            "-site" => {
+                let Some(value) = it.next() else { break };
+                options.meta.site_name = value.to_string();
             }
 
             "-engine" => {
