@@ -185,7 +185,7 @@ impl EngineTime {
                 }
             }
             TimeControl::Byoyomi { base: _, byoyomi } => {
-                let duratioon = if self.remaining < duration {
+                let duration = if self.remaining < duration {
                     let rem = self.remaining;
                     self.remaining = Duration::ZERO;
                     duration - rem
