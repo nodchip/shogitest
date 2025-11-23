@@ -2,7 +2,10 @@
 
 use flexi_logger;
 use log::info;
+use rand::SeedableRng;
+use rand_chacha;
 
+mod book;
 mod cli;
 mod engine;
 mod pgn;
@@ -10,6 +13,7 @@ mod runner;
 mod shogi;
 mod tc;
 mod tournament;
+mod util;
 
 fn main() -> std::io::Result<()> {
     flexi_logger::Logger::try_with_env().unwrap().start().ok();
@@ -24,10 +28,23 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
+    if cli_options.book.is_none() {
+        eprintln!("Openings file required.");
+        return Ok(());
+    }
+
     let engine_names = cli_options.engine_names();
 
+    let opening_book = {
+        let mut rng = match cli_options.rand_seed {
+            Some(seed) => rand_chacha::ChaCha8Rng::seed_from_u64(seed),
+            None => rand_chacha::ChaCha8Rng::from_os_rng(),
+        };
+        book::OpeningBook::new(cli_options.book.as_ref().unwrap(), &mut rng).unwrap()
+    };
+
     let mut tournament: Box<dyn tournament::Tournament> =
-        Box::new(tournament::RoundRobin::new(&cli_options));
+        Box::new(tournament::RoundRobin::new(&cli_options, opening_book));
 
     if let Some(pgn) = cli_options.pgn {
         tournament = Box::new(tournament::PgnOutWrapper::new(

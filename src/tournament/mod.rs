@@ -12,6 +12,7 @@ pub use round_robin::RoundRobin;
 #[derive(Debug, Clone)]
 pub struct MatchTicket {
     pub id: u64,
+    pub opening: shogi::Position,
     pub engines: [usize; 2],
 }
 

@@ -1,4 +1,4 @@
-use crate::{cli, pgn, tournament};
+use crate::{book, cli, pgn, tournament};
 
 fn pairings_count(players: usize) -> u64 {
     (players * (players - 1) / 2) as u64
@@ -12,10 +12,11 @@ pub struct RoundRobin {
     total_matches: Option<u64>,
     players: usize,
     options: cli::CliOptions,
+    openings: book::OpeningBook,
 }
 
 impl RoundRobin {
-    pub fn new(options: &cli::CliOptions) -> RoundRobin {
+    pub fn new(options: &cli::CliOptions, openings: book::OpeningBook) -> RoundRobin {
         let players = options.engines.len();
         RoundRobin {
             match_index: 0,
@@ -26,6 +27,7 @@ impl RoundRobin {
                 .games
                 .map(|g| pairings_count(players) * options.rounds * g),
             options: options.clone(),
+            openings: openings,
         }
     }
 }
@@ -33,13 +35,17 @@ impl RoundRobin {
 impl tournament::Tournament for RoundRobin {
     fn next(&mut self) -> Option<tournament::MatchTicket> {
         let id = self.match_index;
+        let opening = self.openings.current();
+
         let mut players = self.next_players.clone();
         if id % self.options.rounds % 2 == 1 {
             players.reverse();
         }
 
         self.match_index += 1;
+
         if self.match_index % self.options.rounds == 0 {
+            self.openings.advance();
             self.next_players[1] += 1;
             if self.next_players[1] >= self.players {
                 self.next_players[0] += 1;
@@ -57,6 +63,7 @@ impl tournament::Tournament for RoundRobin {
         } else {
             Some(tournament::MatchTicket {
                 id: id,
+                opening: opening,
                 engines: players,
             })
         }

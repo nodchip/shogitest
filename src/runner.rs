@@ -1,4 +1,4 @@
-use crate::shogi::{Color, GameOutcome};
+use crate::shogi::GameOutcome;
 use crate::tc::StepResult;
 use crate::tournament::{MatchResult, MatchTicket, Tournament, TournamentState};
 use crate::{cli, engine, shogi, tc};
@@ -114,12 +114,13 @@ fn run_match(
         engines[ticket.engines[i]].usinewgame()?;
     }
 
-    let mut game = shogi::Game::new(shogi::Position::default());
+    let mut game = shogi::Game::new(ticket.opening);
     loop {
         let stm = game.stm();
 
         let current_engine = &mut engines[ticket.engines[stm.to_index()]];
 
+        // TODO: Improve time measurement here
         let now = Instant::now();
         current_engine.position(&game)?;
 

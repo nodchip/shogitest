@@ -8,12 +8,30 @@ pub struct MetaDataOptions {
 }
 
 #[derive(Debug, Clone)]
+pub struct BookOptions {
+    pub file: String,
+    pub random_order: bool,
+    pub start_index: usize,
+}
+
+impl Default for BookOptions {
+    fn default() -> Self {
+        BookOptions {
+            file: String::from("<none>"),
+            random_order: false,
+            start_index: 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct CliOptions {
     pub engines: Vec<EngineOptions>,
-    pub openings_file: Option<String>,
+    pub book: Option<BookOptions>,
     pub games: Option<u64>,
     pub rounds: u64,
     pub concurrency: u64,
+    pub rand_seed: Option<u64>,
     pub meta: MetaDataOptions,
     pub pgn: Option<PgnOutOptions>,
 }
@@ -31,10 +49,11 @@ impl Default for CliOptions {
     fn default() -> Self {
         CliOptions {
             engines: vec![],
-            openings_file: None,
+            book: None,
             games: None,
             rounds: 2,
             concurrency: 1,
+            rand_seed: None,
             meta: MetaDataOptions {
                 event_name: String::from("?"),
                 site_name: String::from("?"),
@@ -133,6 +152,12 @@ pub fn parse() -> Option<CliOptions> {
             }
 
             "-openings" => {
+                if options.book.is_some() {
+                    eprintln!("Duplicate -openings flag");
+                    return None;
+                }
+
+                let mut book = BookOptions::default();
                 loop {
                     let Some(option) = it.peek() else { break };
                     if option.starts_with("-") {
@@ -145,7 +170,26 @@ pub fn parse() -> Option<CliOptions> {
 
                     match name {
                         "file" => {
-                            options.openings_file = Some(String::from(value));
+                            book.file = String::from(value);
+                        }
+                        "order" => {
+                            book.random_order = value == "random";
+                        }
+                        "start" => {
+                            if let Ok(value) = value.parse::<usize>() {
+                                if value == 0 {
+                                    eprint!(
+                                        "invalid opening start index {value} (must be bigger than zero)"
+                                    );
+                                    return None;
+                                }
+                                book.start_index = value;
+                            } else {
+                                eprint!(
+                                    "invalid opening start index {value} (must be unsigned integer)"
+                                );
+                                return None;
+                            }
                         }
                         _ => {
                             dbg!(&name);
@@ -153,6 +197,7 @@ pub fn parse() -> Option<CliOptions> {
                         }
                     }
                 }
+                options.book = Some(book);
             }
 
             "-concurrency" => {
@@ -165,6 +210,16 @@ pub fn parse() -> Option<CliOptions> {
                     options.concurrency = option;
                 } else {
                     eprint!("invalid concurrency value {option} (must be unsigned integer)");
+                    return None;
+                }
+            }
+
+            "-srand" => {
+                let Some(option) = it.next() else { break };
+                if let Ok(option) = option.parse::<u64>() {
+                    options.rand_seed = Some(option);
+                } else {
+                    eprint!("invalid random seed {option} (must be unsigned integer)");
                     return None;
                 }
             }
