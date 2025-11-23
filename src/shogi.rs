@@ -918,6 +918,7 @@ pub enum GameOutcome {
     Resignation(Color),
     LossByClock(Color),
     LossByDisconnection(Color),
+    DrawByMoveLimit,
 }
 
 impl GameOutcome {
@@ -936,6 +937,7 @@ impl GameOutcome {
             GameOutcome::Resignation(color) => Some(!color),
             GameOutcome::LossByClock(color) => Some(!color),
             GameOutcome::LossByDisconnection(color) => Some(!color),
+            GameOutcome::DrawByMoveLimit => None,
         }
     }
 
@@ -961,6 +963,7 @@ impl GameOutcome {
             GameOutcome::LossByClock(Color::Gote) => "Gote loses on time",
             GameOutcome::LossByDisconnection(Color::Sente) => "Sente disconnects",
             GameOutcome::LossByDisconnection(Color::Gote) => "Gote disconnects",
+            GameOutcome::DrawByMoveLimit => "Draw by adjudication: Reached move limit",
         }
     }
 }
@@ -986,6 +989,10 @@ impl Game {
 
     pub fn stm(&self) -> Color {
         self.current_position.stm
+    }
+
+    pub fn move_count(&self) -> usize {
+        self.moves.len()
     }
 
     pub fn usi_string(&self) -> String {

@@ -27,6 +27,19 @@ impl Default for BookOptions {
 }
 
 #[derive(Debug, Clone)]
+pub struct AdjudicationOptions {
+    pub max_moves: Option<u64>,
+}
+
+impl Default for AdjudicationOptions {
+    fn default() -> Self {
+        AdjudicationOptions {
+            max_moves: Some(512),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct CliOptions {
     pub engines: Vec<EngineOptions>,
     pub book: Option<BookOptions>,
@@ -36,6 +49,7 @@ pub struct CliOptions {
     pub rand_seed: Option<u64>,
     pub meta: MetaDataOptions,
     pub pgn: Option<PgnOutOptions>,
+    pub adjudication: AdjudicationOptions,
 }
 
 impl CliOptions {
@@ -61,6 +75,7 @@ impl Default for CliOptions {
                 site_name: String::from("?"),
             },
             pgn: None,
+            adjudication: AdjudicationOptions::default(),
         }
     }
 }
@@ -359,6 +374,24 @@ pub fn parse() -> Option<CliOptions> {
                     }
                 }
                 options.pgn = Some(pgn_out);
+            }
+
+            "-maxmoves" => {
+                let Some(value) = it.next() else { break };
+                options.adjudication.max_moves = match value.to_lowercase().as_str() {
+                    "inf" | "infinite" => None,
+                    _ if let Ok(value) = value.parse::<u64>()
+                        && value > 0 =>
+                    {
+                        Some(value)
+                    }
+                    _ => {
+                        eprint!(
+                            "invalid maxmoves value {value} (must be non-zero unsigned integer)"
+                        );
+                        return None;
+                    }
+                };
             }
 
             _ => {

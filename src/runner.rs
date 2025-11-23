@@ -12,13 +12,19 @@ use std::time::Instant;
 pub struct Runner {
     engines: Vec<cli::EngineOptions>,
     concurrency: u64,
+    adjudication: cli::AdjudicationOptions,
 }
 
 impl Runner {
-    pub fn new(engines: Vec<cli::EngineOptions>, concurrency: u64) -> Runner {
+    pub fn new(
+        engines: Vec<cli::EngineOptions>,
+        concurrency: u64,
+        adjudication: cli::AdjudicationOptions,
+    ) -> Runner {
         Runner {
             engines,
             concurrency,
+            adjudication,
         }
     }
 
@@ -34,8 +40,9 @@ impl Runner {
             let recv_ticket = recv_ticket.clone();
             let send_result = send_result.clone();
             let engines = self.engines.clone();
+            let adjudication = self.adjudication.clone();
             thread_handles.push(thread::spawn(move || {
-                runner_thread_main(engines, i, recv_ticket, send_result);
+                runner_thread_main(engines, adjudication, i, recv_ticket, send_result);
             }));
         }
 
@@ -72,6 +79,7 @@ impl Runner {
 
 fn runner_thread_main(
     engine_options: Vec<cli::EngineOptions>,
+    adjudication: cli::AdjudicationOptions,
     thread_index: u64,
     recv: crossbeam_channel::Receiver<Option<MatchTicket>>,
     send: crossbeam_channel::Sender<MatchResult>,
@@ -85,7 +93,7 @@ fn runner_thread_main(
         assert!(ticket.engines[0] != ticket.engines[1]);
         info!("Thread {thread_index} received ticket: {:?}", &ticket);
 
-        let result = run_match(&engine_options, &mut engines, &ticket).unwrap();
+        let result = run_match(&engine_options, &adjudication, &mut engines, &ticket).unwrap();
 
         info!("Thread {thread_index} sending result: {:?}", &result);
         send.send(result).unwrap();
@@ -94,6 +102,7 @@ fn runner_thread_main(
 
 fn run_match(
     engine_options: &[cli::EngineOptions],
+    adjudication: &cli::AdjudicationOptions,
     engines: &mut [engine::Engine],
     ticket: &MatchTicket,
 ) -> Result<MatchResult, std::io::Error> {
@@ -141,6 +150,13 @@ fn run_match(
 
         if time_outcome == StepResult::TimeElapsed {
             match_result.outcome = GameOutcome::LossByClock(stm);
+        }
+
+        if let Some(max_moves) = adjudication.max_moves
+            && game.move_count() as u64 >= max_moves
+            && !match_result.outcome.is_determined()
+        {
+            match_result.outcome = GameOutcome::DrawByMoveLimit;
         }
 
         if match_result.outcome.is_determined() {

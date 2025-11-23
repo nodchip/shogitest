@@ -61,7 +61,7 @@ fn main() -> std::io::Result<()> {
         engine_names.clone(),
     ));
 
-    let r = runner::Runner::new(cli_options.engines, cli_options.concurrency);
+    let r = runner::Runner::new(cli_options.engines, cli_options.concurrency, cli_options.adjudication);
     r.run(tournament);
 
     Ok(())
