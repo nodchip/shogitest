@@ -27,6 +27,8 @@ pub struct MoveRecord {
     pub nps: u64,
     pub engine_time: u64,
     pub hashfull: u32,
+    pub measured_time: Duration,
+    pub time_left: Option<Duration>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Default)]

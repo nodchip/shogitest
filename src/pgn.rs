@@ -71,11 +71,28 @@ impl PgnWriter {
                     format!("{}M{}", if x > 0 { "+" } else { "-" }, x.abs())
                 }
             };
-            writeln!(
-                f,
-                "{mstr} {{{score_str} {}/{} nodes={} nps={}}}",
-                m.depth, m.seldepth, m.nodes, m.nps
-            )?;
+            let mut comment = format!("{score_str} {}", m.depth);
+            if self.options.track_seldepth {
+                comment = format!("{comment}/{}", m.seldepth);
+            }
+            if self.options.track_nodes {
+                comment = format!("{comment} n={}", m.nodes);
+            }
+            if self.options.track_nps {
+                comment = format!("{comment} nps={}", m.nps);
+            }
+            if self.options.track_hashfull {
+                comment = format!("{comment} hashfull={}", m.hashfull);
+            }
+            if self.options.track_timeleft && let Some(time_left) = m.time_left {
+                comment = format!("{comment} timeleft={}s", time_left.as_secs_f64());
+            }
+            if self.options.track_latency {
+                let latency = m.measured_time.as_secs_f64() - m.engine_time as f64 / 1000.0;
+                comment = format!("{comment} latency={latency}s");
+            }
+            comment = format!("{comment} t={}s", m.measured_time.as_secs_f64());
+            writeln!(f, "{mstr} {{{comment}}}",)?;
         }
 
         writeln!(f, "{result_str}")?;

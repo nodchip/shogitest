@@ -164,10 +164,12 @@ fn run_match(
         ))?;
         current_engine.flush()?;
 
-        let move_record = current_engine.wait_for_bestmove()?;
+        let mut move_record = current_engine.wait_for_bestmove()?;
 
         let duration = Instant::now() - now;
         let time_outcome = engine_time[stm.to_index()].step(duration);
+        move_record.measured_time = duration;
+        move_record.time_left = engine_time[stm.to_index()].remaining();
 
         let m = move_record.m;
         match_result.moves.push(move_record);

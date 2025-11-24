@@ -174,6 +174,20 @@ impl EngineTime {
         }
     }
 
+    pub fn remaining(&self) -> Option<Duration> {
+        match self.tc {
+            TimeControl::None | TimeControl::MoveTime(_) | TimeControl::Nodes(_) => None,
+            TimeControl::Byoyomi {
+                base: _,
+                byoyomi: _,
+            }
+            | TimeControl::Fischer {
+                base: _,
+                increment: _,
+            } => Some(self.remaining),
+        }
+    }
+
     pub fn step(&mut self, duration: Duration) -> StepResult {
         match self.tc {
             TimeControl::None | TimeControl::Nodes(_) => StepResult::Ok,

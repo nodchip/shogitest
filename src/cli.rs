@@ -88,7 +88,7 @@ pub struct EngineOptions {
     pub time_control: tc::TimeControl,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct PgnOutOptions {
     pub file: String,
     pub track_nodes: bool,
@@ -97,6 +97,20 @@ pub struct PgnOutOptions {
     pub track_hashfull: bool,
     pub track_timeleft: bool,
     pub track_latency: bool,
+}
+
+impl Default for PgnOutOptions {
+    fn default() -> Self {
+        PgnOutOptions {
+            file: String::default(),
+            track_nodes: true,
+            track_seldepth: true,
+            track_nps: false,
+            track_hashfull: false,
+            track_timeleft: false,
+            track_latency: false,
+        }
+    }
 }
 
 fn parse_engine_option(engine: &mut EngineOptions, name: &str, value: &str) {
