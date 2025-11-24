@@ -29,12 +29,50 @@ impl Default for BookOptions {
 #[derive(Debug, Clone)]
 pub struct AdjudicationOptions {
     pub max_moves: Option<u64>,
+    pub draw: Option<DrawAdjudicationOptions>,
+    pub resign: Option<ResignAdjudicationOptions>,
 }
 
 impl Default for AdjudicationOptions {
     fn default() -> Self {
         AdjudicationOptions {
             max_moves: Some(512),
+            draw: None,
+            resign: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DrawAdjudicationOptions {
+    pub move_number: usize,
+    pub move_count: usize,
+    pub score: u32,
+}
+
+impl Default for DrawAdjudicationOptions {
+    fn default() -> Self {
+        DrawAdjudicationOptions {
+            move_number: 0,
+            move_count: 1,
+            score: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ResignAdjudicationOptions {
+    pub move_count: usize,
+    pub score: u32,
+    pub two_sided: bool,
+}
+
+impl Default for ResignAdjudicationOptions {
+    fn default() -> Self {
+        ResignAdjudicationOptions {
+            move_count: 1,
+            score: 0,
+            two_sided: false,
         }
     }
 }
@@ -397,6 +435,97 @@ pub fn parse() -> Option<CliOptions> {
                         return None;
                     }
                 };
+            }
+
+            "-draw" => {
+                let mut draw = DrawAdjudicationOptions::default();
+                while let Some(option) = it.peek()
+                    && option.starts_with("-")
+                    && let Some((name, value)) = option.split_once('=')
+                {
+                    it.next(); // consume token
+
+                    match name {
+                        "movenumber" => {
+                            draw.move_number = match value.parse::<usize>() {
+                                Ok(value) => value,
+                                _ => {
+                                    eprintln!("Invalid movenumber {value} for -draw");
+                                    return None;
+                                }
+                            };
+                        }
+                        "movecount" => {
+                            draw.move_count = match value.parse::<usize>() {
+                                Ok(value) => value,
+                                _ => {
+                                    eprintln!("Invalid movecount {value} for -draw");
+                                    return None;
+                                }
+                            };
+                        }
+                        "score" => {
+                            draw.score = match value.parse::<u32>() {
+                                Ok(value) => value,
+                                _ => {
+                                    eprintln!("Invalid score {value} for -draw");
+                                    return None;
+                                }
+                            };
+                        }
+                        _ => {
+                            eprintln!("Invalid key {name} for -draw");
+                            return None;
+                        }
+                    }
+                }
+                options.adjudication.draw = Some(draw);
+            }
+
+            "-resign" => {
+                let mut resign = ResignAdjudicationOptions::default();
+                while let Some(option) = it.peek()
+                    && option.starts_with("-")
+                    && let Some((name, value)) = option.split_once('=')
+                {
+                    it.next(); // consume token
+
+                    match name {
+                        "movecount" => {
+                            resign.move_count = match value.parse::<usize>() {
+                                Ok(value) => value,
+                                _ => {
+                                    eprintln!("Invalid movecount {value} for -resign");
+                                    return None;
+                                }
+                            };
+                        }
+                        "score" => {
+                            resign.score = match value.parse::<u32>() {
+                                Ok(value) => value,
+                                _ => {
+                                    eprintln!("Invalid score {value} for -resign");
+                                    return None;
+                                }
+                            };
+                        }
+                        "twosided" => {
+                            resign.two_sided = match value.to_lowercase().as_ref() {
+                                "true" => true,
+                                "false" => false,
+                                _ => {
+                                    eprintln!("Invalid boolean {value} for twosided for -resign");
+                                    return None;
+                                }
+                            };
+                        }
+                        _ => {
+                            eprintln!("Invalid key {name} for -resign");
+                            return None;
+                        }
+                    }
+                }
+                options.adjudication.resign = Some(resign);
             }
 
             "-ratinginterval" => {

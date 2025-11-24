@@ -1,7 +1,12 @@
-use crate::shogi::GameOutcome;
-use crate::tc::StepResult;
-use crate::tournament::{MatchResult, MatchTicket, Tournament, TournamentState};
-use crate::{cli, engine, shogi, tc};
+use crate::{
+    cli,
+    engine::{self, Score},
+    shogi,
+    shogi::GameOutcome,
+    tc,
+    tc::StepResult,
+    tournament::{MatchResult, MatchTicket, Tournament, TournamentState},
+};
 use chrono::Utc;
 use log::info;
 use std::thread;
@@ -125,6 +130,87 @@ fn runner_thread_main(
     }
 }
 
+fn do_adjudication(
+    stm: shogi::Color,
+    adjudication: &cli::AdjudicationOptions,
+    match_result: &mut MatchResult,
+) {
+    if match_result.outcome.is_determined() {
+        return;
+    }
+
+    if let Some(max_moves) = adjudication.max_moves
+        && match_result.moves.len() as u64 >= max_moves
+    {
+        match_result.outcome = GameOutcome::DrawByMoveLimit;
+    }
+
+    if let Some(ref draw) = adjudication.draw
+        && match_result.moves.len() >= draw.move_number
+        && match_result
+            .moves
+            .iter()
+            .rev()
+            .take_while(|m| match m.score {
+                Score::Cp(cp) => cp.abs() as u32 <= draw.score,
+                _ => false,
+            })
+            .count()
+            >= draw.move_count
+    {
+        match_result.outcome = GameOutcome::DrawByAdjudication;
+    }
+
+    if let Some(ref resign) = adjudication.resign
+        && !resign.two_sided
+        && match_result
+            .moves
+            .iter()
+            .rev()
+            .filter(|m| m.stm == Some(stm))
+            .take_while(|m| match m.score {
+                Score::None => false,
+                Score::Cp(cp) => cp <= -(resign.score as i32),
+                Score::Mate(ply) => ply < 0,
+            })
+            .count()
+            >= resign.move_count
+    {
+        assert!(Some(stm) == match_result.moves.last().and_then(|m| m.stm));
+        match_result.outcome = GameOutcome::WinByAdjudication(!stm);
+    }
+
+    if let Some(ref resign) = adjudication.resign
+        && resign.two_sided
+        && match_result
+            .moves
+            .iter()
+            .rev()
+            .take_while(|m| match m.score {
+                Score::None => false,
+                Score::Cp(cp) => {
+                    if Some(stm) == m.stm {
+                        cp <= -(resign.score as i32)
+                    } else {
+                        cp >= resign.score as i32
+                    }
+                }
+                Score::Mate(ply) => {
+                    if Some(stm) == m.stm {
+                        ply < 0
+                    } else {
+                        ply > 0
+                    }
+                }
+            })
+            .count()
+            >= resign.move_count
+    {
+        assert!(Some(stm) == match_result.moves.last().and_then(|m| m.stm));
+        match_result.outcome = GameOutcome::WinByAdjudication(!stm);
+    }
+}
+
 fn run_match(
     engine_options: &[cli::EngineOptions],
     adjudication: &cli::AdjudicationOptions,
@@ -165,6 +251,7 @@ fn run_match(
         current_engine.flush()?;
 
         let mut move_record = current_engine.wait_for_bestmove()?;
+        move_record.stm = Some(stm);
 
         let duration = Instant::now() - now;
         let time_outcome = engine_time[stm.to_index()].step(duration);
@@ -179,12 +266,7 @@ fn run_match(
             match_result.outcome = GameOutcome::LossByClock(stm);
         }
 
-        if let Some(max_moves) = adjudication.max_moves
-            && game.move_count() as u64 >= max_moves
-            && !match_result.outcome.is_determined()
-        {
-            match_result.outcome = GameOutcome::DrawByMoveLimit;
-        }
+        do_adjudication(stm, &adjudication, &mut match_result);
 
         if match_result.outcome.is_determined() {
             return Ok(match_result);

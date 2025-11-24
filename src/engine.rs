@@ -18,6 +18,7 @@ pub enum Score {
 
 #[derive(Debug, Clone, Default)]
 pub struct MoveRecord {
+    pub stm: Option<shogi::Color>,
     pub m: shogi::Move,
     pub mstr: String,
     pub score: Score,

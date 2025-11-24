@@ -37,7 +37,7 @@ impl PgnWriter {
             Some(shogi::Color::Sente) => "1-0",
             Some(shogi::Color::Gote) => "0-1",
             None if match_result.outcome.is_draw() => "1/2-1/2",
-            None => "undetermined"
+            None => "undetermined",
         };
 
         Self::write_header(f, "Event", &self.meta.event_name)?;
@@ -85,7 +85,9 @@ impl PgnWriter {
             if self.options.track_hashfull {
                 comment = format!("{comment} hashfull={}", m.hashfull);
             }
-            if self.options.track_timeleft && let Some(time_left) = m.time_left {
+            if self.options.track_timeleft
+                && let Some(time_left) = m.time_left
+            {
                 comment = format!("{comment} timeleft={}s", time_left.as_secs_f64());
             }
             if self.options.track_latency {
