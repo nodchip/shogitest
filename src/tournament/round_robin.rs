@@ -25,12 +25,12 @@ impl RoundRobin {
             match_index: 0,
             completed_matches: 0,
             next_players: [0, 1],
-            players: players,
+            players,
             total_matches: options
                 .games
                 .map(|g| pairings_count(players) * options.rounds * g),
             options: options.clone(),
-            openings: openings,
+            openings,
         }
     }
 }
@@ -40,14 +40,14 @@ impl Tournament for RoundRobin {
         let id = self.match_index;
         let opening = self.openings.current();
 
-        let mut players = self.next_players.clone();
+        let mut players = self.next_players;
         if id % self.options.rounds % 2 == 1 {
             players.reverse();
         }
 
         self.match_index += 1;
 
-        if self.match_index % self.options.rounds == 0 {
+        if self.match_index.is_multiple_of(self.options.rounds) {
             self.openings.advance();
             self.next_players[1] += 1;
             if self.next_players[1] >= self.players {
@@ -65,8 +65,8 @@ impl Tournament for RoundRobin {
             None
         } else {
             Some(MatchTicket {
-                id: id,
-                opening: opening,
+                id,
+                opening,
                 engines: players,
             })
         }

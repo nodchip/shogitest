@@ -18,7 +18,7 @@ impl PgnWriter {
     ) -> Result<PgnWriter, Error> {
         Ok(PgnWriter {
             file: File::create_new(&options.file)?,
-            engine_names: engine_names,
+            engine_names,
             options: options.clone(),
             meta: meta.clone(),
         })
@@ -56,7 +56,7 @@ impl PgnWriter {
 
         // TODO : "GameDuration" "GameStartTime" "GameEndTime" "PlyCount" "Termination" "TimeControl" "WhiteTimeControl" "BlackTimeControl"
 
-        writeln!(f, "")?;
+        writeln!(f)?;
 
         for m in &match_result.moves {
             let mstr = if m.mstr.is_empty() {
@@ -79,7 +79,7 @@ impl PgnWriter {
         }
 
         writeln!(f, "{result_str}")?;
-        writeln!(f, "")?;
+        writeln!(f)?;
 
         Ok(())
     }

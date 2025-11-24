@@ -16,8 +16,8 @@ impl PgnOutWrapper {
         engine_names: Vec<String>,
     ) -> Result<PgnOutWrapper, std::io::Error> {
         Ok(PgnOutWrapper {
-            inner: inner,
-            pgn: pgn::PgnWriter::new(&options, &meta, engine_names)?,
+            inner,
+            pgn: pgn::PgnWriter::new(options, meta, engine_names)?,
         })
     }
 }

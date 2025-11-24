@@ -1,10 +1,8 @@
 #![feature(str_split_whitespace_remainder)]
 #![feature(if_let_guard)]
 
-use flexi_logger;
 use log::info;
 use rand::SeedableRng;
-use rand_chacha;
 
 mod book;
 mod cli;

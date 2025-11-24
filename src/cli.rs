@@ -114,7 +114,7 @@ fn parse_engine_option(engine: &mut EngineOptions, name: &str, value: &str) {
             if engine.time_control != tc::TimeControl::None {
                 eprint!("Warning; Specifying multiple time controls!");
             }
-            if let Some(tc) = tc::TimeControl::parse(&value) {
+            if let Some(tc) = tc::TimeControl::parse(value) {
                 engine.time_control = tc;
             } else {
                 eprint!("Invalid time control specification {value}");
@@ -183,30 +183,22 @@ pub fn parse() -> Option<CliOptions> {
 
             "-engine" => {
                 let mut engine = EngineOptions::default();
-                loop {
-                    let Some(option) = it.peek() else { break };
-                    if option.starts_with("-") {
-                        break;
-                    };
-                    let Some((name, value)) = option.split_once('=') else {
-                        break;
-                    };
+                while let Some(option) = it.peek()
+                    && option.starts_with("-")
+                    && let Some((name, value)) = option.split_once('=')
+                {
                     it.next(); // consume token
 
-                    parse_engine_option(&mut engine, &name, &value);
+                    parse_engine_option(&mut engine, name, value);
                 }
                 options.engines.push(engine);
             }
 
             "-each" => {
-                loop {
-                    let Some(option) = it.peek() else { break };
-                    if option.starts_with("-") {
-                        break;
-                    };
-                    let Some((name, value)) = option.split_once('=') else {
-                        break;
-                    };
+                while let Some(option) = it.peek()
+                    && option.starts_with("-")
+                    && let Some((name, value)) = option.split_once('=')
+                {
                     it.next(); // consume token
 
                     each_options.push((name.to_string(), value.to_string()));
@@ -220,14 +212,10 @@ pub fn parse() -> Option<CliOptions> {
                 }
 
                 let mut book = BookOptions::default();
-                loop {
-                    let Some(option) = it.peek() else { break };
-                    if option.starts_with("-") {
-                        break;
-                    };
-                    let Some((name, value)) = option.split_once('=') else {
-                        break;
-                    };
+                while let Some(option) = it.peek()
+                    && option.starts_with("-")
+                    && let Some((name, value)) = option.split_once('=')
+                {
                     it.next(); // consume token
 
                     match name {
@@ -329,14 +317,10 @@ pub fn parse() -> Option<CliOptions> {
 
             "-pgnout" => {
                 let mut pgn_out = PgnOutOptions::default();
-                loop {
-                    let Some(option) = it.peek() else { break };
-                    if option.starts_with("-") {
-                        break;
-                    };
-                    let Some((name, value)) = option.split_once('=') else {
-                        break;
-                    };
+                while let Some(option) = it.peek()
+                    && option.starts_with("-")
+                    && let Some((name, value)) = option.split_once('=')
+                {
                     it.next(); // consume token
 
                     let value_as_bool = || -> Option<bool> {

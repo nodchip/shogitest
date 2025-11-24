@@ -163,7 +163,7 @@ pub struct EngineTime {
 impl EngineTime {
     pub fn new(tc: TimeControl) -> EngineTime {
         EngineTime {
-            tc: tc.clone(),
+            tc,
             remaining: match tc {
                 TimeControl::None | TimeControl::MoveTime(_) | TimeControl::Nodes(_) => {
                     Duration::ZERO

@@ -3,7 +3,6 @@ use crate::tc::StepResult;
 use crate::tournament::{MatchResult, MatchTicket, Tournament, TournamentState};
 use crate::{cli, engine, shogi, tc};
 use chrono::Utc;
-use crossbeam_channel;
 use log::info;
 use std::thread;
 use std::time::Instant;

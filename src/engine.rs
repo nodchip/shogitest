@@ -1,10 +1,12 @@
 use crate::shogi;
-use log::{error, trace};
+use log::{error, info, trace};
 use std::{
     env,
     io::{BufRead, BufReader, Result, Write},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    time::Duration,
 };
+use wait_timeout::ChildExt;
 
 #[derive(Debug, Clone, Default)]
 pub enum Score {
@@ -65,13 +67,16 @@ impl EngineBuilder {
                 Some("usiok") => break,
                 Some("id") => match it.next() {
                     Some("name") => {
-                        if self.name.is_none() {
-                            if let Some(name) = it.remainder() {
-                                engine.name = name.trim().to_string();
-                            }
+                        if self.name.is_none()
+                            && let Some(name) = it.remainder()
+                        {
+                            engine.name = name.trim().to_string();
                         }
                     }
-                    _ => {}
+                    Some("author") => {}
+                    s => {
+                        dbg!(s);
+                    }
                 },
                 _ => {}
             }
@@ -81,13 +86,15 @@ impl EngineBuilder {
             engine.write_line(&format!("setoption name {k} value {v}"))?;
         }
 
+        info!("Engine {} started", engine.name);
+
         Ok(engine)
     }
     pub fn get_usi_option_value(&self, key: &str) -> Option<&str> {
         self.usi_options
             .iter()
             .filter_map(|(k, v)| if k == key { Some(v.as_ref()) } else { None })
-            .last()
+            .next_back()
     }
 }
 
@@ -98,6 +105,29 @@ pub struct Engine {
     stdin: ChildStdin,
     name: String,
     builder: EngineBuilder,
+}
+
+impl Drop for Engine {
+    fn drop(&mut self) {
+        info!("Quitting engine {}...", self.name);
+        match self.write_line("quit") {
+            Ok(_) => {}
+            Err(_) => error!("Failed to write quit to engine {}", self.name),
+        };
+        match self.child.wait_timeout(Duration::from_secs(10)) {
+            Ok(Some(_)) => info!("Quit engine {} successfully", self.name),
+            Ok(None) | Err(_) => {
+                info!(
+                    "Timed out quitting engine {}, attempting to kill...",
+                    self.name
+                );
+                match self.child.kill() {
+                    Ok(_) => info!("Engine {} killed", self.name),
+                    Err(_) => info!("Failed to kill engine {}, giving up", self.name),
+                }
+            }
+        }
+    }
 }
 
 impl Engine {

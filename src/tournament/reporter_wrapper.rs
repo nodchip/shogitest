@@ -11,8 +11,8 @@ pub struct ReporterWrapper {
 impl ReporterWrapper {
     pub fn new(inner: Box<dyn Tournament>, engine_names: Vec<String>) -> ReporterWrapper {
         ReporterWrapper {
-            inner: inner,
-            engine_names: engine_names,
+            inner,
+            engine_names,
         }
     }
 }
