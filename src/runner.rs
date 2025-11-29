@@ -1,6 +1,6 @@
 use crate::{
     cli,
-    engine::{self, Score},
+    engine::{self, EngineResult, Score},
     shogi,
     shogi::GameOutcome,
     tc,
@@ -251,23 +251,35 @@ fn run_match(
         ))?;
         current_engine.flush()?;
 
-        let mut move_record = current_engine.wait_for_bestmove(bestmove_timeout)?;
-        move_record.stm = Some(stm);
+        match current_engine.wait_for_bestmove(stm, bestmove_timeout) {
+            EngineResult::Err(err) => return Err(err),
 
-        let duration = Instant::now() - now;
-        let time_outcome = engine_time[stm.to_index()].step(duration);
-        move_record.measured_time = duration;
-        move_record.time_left = engine_time[stm.to_index()].remaining();
+            EngineResult::Ok(mut move_record) => {
+                let duration = Instant::now() - now;
+                let time_outcome = engine_time[stm.to_index()].step(duration);
+                move_record.measured_time = duration;
+                move_record.time_left = engine_time[stm.to_index()].remaining();
 
-        let m = move_record.m;
-        match_result.moves.push(move_record);
-        match_result.outcome = game.do_move(m);
+                let m = move_record.m;
+                match_result.moves.push(move_record);
+                match_result.outcome = game.do_move(m);
 
-        if time_outcome == StepResult::TimeElapsed {
-            match_result.outcome = GameOutcome::LossByClock(stm);
-        }
+                if time_outcome == StepResult::TimeElapsed {
+                    match_result.outcome = GameOutcome::LossByClock(stm);
+                }
 
-        do_adjudication(stm, &adjudication, &mut match_result);
+                do_adjudication(stm, &adjudication, &mut match_result);
+            }
+
+            EngineResult::Timeout => {
+                match_result.outcome = GameOutcome::LossByClock(stm);
+            }
+
+            EngineResult::Disconnected => {
+                match_result.outcome = GameOutcome::LossByDisconnection(stm);
+            }
+        };
+
 
         if match_result.outcome.is_determined() {
             return Ok(match_result);

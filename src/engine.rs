@@ -2,7 +2,7 @@ use crate::shogi;
 use log::{error, info, trace};
 use std::{
     env,
-    io::{BufRead, BufReader, Result, Write},
+    io::{Read, Result, Write},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     time::Duration,
 };
@@ -19,11 +19,12 @@ pub enum Score {
     Mate(i32),
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum ReadResult {
-    Ok,
+#[derive(Debug)]
+pub enum EngineResult<T> {
+    Ok(T),
     Timeout,
     Disconnected,
+    Err(std::io::Error),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -66,7 +67,7 @@ impl EngineBuilder {
             .stdin(Stdio::piped())
             .spawn()?;
 
-        let stdout = BufReader::new(child.stdout.take().unwrap());
+        let stdout = child.stdout.take().unwrap();
         let stdin = child.stdin.take().unwrap();
 
         let mut engine = Engine {
@@ -75,13 +76,12 @@ impl EngineBuilder {
             read_buf: Vec::new(),
             stdin,
             name: self.name.clone().unwrap_or(self.cmd.to_string()),
-            builder: self.clone(),
         };
 
         engine.write_line("usi")?;
 
         let mut usi_name: Option<String> = None;
-        engine.read_with_timeout(Some(5 * Duration::SECOND), |line| {
+        match engine.read_with_timeout(Some(5 * Duration::SECOND), |line| {
             let mut it = line.split_whitespace();
             match it.next() {
                 Some("usiok") => ReadState::Stop,
@@ -101,7 +101,25 @@ impl EngineBuilder {
                 }
                 _ => ReadState::Continue,
             }
-        })?;
+        }) {
+            EngineResult::Ok(()) => {}
+            EngineResult::Err(err) => return Err(err),
+            EngineResult::Timeout => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    format!("Timed-out waiting for usiok for {}", engine.name),
+                ));
+            }
+            EngineResult::Disconnected => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    format!(
+                        "Engine {} disconnected while waiting for usiok",
+                        engine.name
+                    ),
+                ));
+            }
+        }
 
         if let Some(usi_name) = usi_name
             && self.name.is_none()
@@ -128,11 +146,10 @@ impl EngineBuilder {
 #[derive(Debug)]
 pub struct Engine {
     child: Child,
-    stdout: BufReader<ChildStdout>,
+    stdout: ChildStdout,
     read_buf: Vec<u8>,
     stdin: ChildStdin,
     name: String,
-    builder: EngineBuilder,
 }
 
 impl Drop for Engine {
@@ -171,14 +188,27 @@ impl Engine {
     pub fn isready(&mut self) -> Result<()> {
         self.write_line("isready")?;
         self.flush()?;
-        self.read_with_timeout(Some(5 * Duration::SECOND), |line| {
+        match self.read_with_timeout(Some(5 * Duration::SECOND), |line| {
             if line.trim().eq_ignore_ascii_case("readyok") {
                 ReadState::Stop
             } else {
                 ReadState::Continue
             }
-        })?;
-        Ok(())
+        }) {
+            EngineResult::Ok(()) => Ok(()),
+            EngineResult::Err(err) => Err(err),
+            EngineResult::Timeout => Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                format!("Timed-out waiting for readyok for {}", self.name),
+            )),
+            EngineResult::Disconnected => Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!(
+                    "Engine {} disconnected while waiting for readyok",
+                    self.name
+                ),
+            )),
+        }
     }
 
     pub fn usinewgame(&mut self) -> Result<()> {
@@ -194,9 +224,10 @@ impl Engine {
         Ok(())
     }
 
-    pub fn wait_for_bestmove(&mut self, timeout: Option<Duration>) -> Result<MoveRecord> {
+    pub fn wait_for_bestmove(&mut self, stm: crate::shogi::Color, timeout: Option<Duration>) -> EngineResult<MoveRecord> {
         let mut mr = MoveRecord::default();
-        self.read_with_timeout(timeout, |line| {
+        mr.stm = Some(stm);
+        match self.read_with_timeout(timeout, |line| {
             let mut it = line.split_ascii_whitespace();
             match it.next() {
                 Some("info") => {
@@ -271,7 +302,7 @@ impl Engine {
                     ReadState::Continue
                 }
                 Some("bestmove") => {
-                    let mstr = line.trim().split(' ').nth(1).unwrap_or("");
+                    let mstr = it.next().unwrap_or("");
                     mr.mstr = mstr.to_string();
                     if let Some(m) = shogi::Move::parse(mstr) {
                         mr.m = m;
@@ -280,8 +311,12 @@ impl Engine {
                 }
                 _ => ReadState::Continue,
             }
-        })?;
-        Ok(mr)
+        }) {
+            EngineResult::Ok(()) => EngineResult::Ok(mr),
+            EngineResult::Err(err) => EngineResult::Err(err),
+            EngineResult::Timeout => EngineResult::Timeout,
+            EngineResult::Disconnected => EngineResult::Disconnected,
+        }
     }
 
     pub fn flush(&mut self) -> Result<()> {
@@ -289,11 +324,7 @@ impl Engine {
     }
 
     #[cfg(unix)]
-    pub fn read_with_timeout<F>(
-        &mut self,
-        timeout: Option<Duration>,
-        mut f: F,
-    ) -> Result<ReadResult>
+    pub fn read_with_timeout<F>(&mut self, timeout: Option<Duration>, mut f: F) -> EngineResult<()>
     where
         F: FnMut(String) -> ReadState,
     {
@@ -304,7 +335,7 @@ impl Engine {
 
         loop {
             let mut fds: [libc::pollfd; 1] = unsafe { std::mem::zeroed() };
-            fds[0].fd = self.stdout.get_mut().as_raw_fd();
+            fds[0].fd = self.stdout.as_raw_fd();
             fds[0].events = libc::POLLIN;
 
             let ready_count = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as u64, timeout_ms) };
@@ -312,26 +343,44 @@ impl Engine {
                 let err = std::io::Error::last_os_error();
                 match err.raw_os_error() {
                     Some(libc::EINTR) | Some(libc::EAGAIN) => continue,
-                    _ => return Err(err),
+                    _ => return EngineResult::Err(err),
                 }
             }
 
             assert!(ready_count as usize <= fds.len());
 
             if ready_count == 0 {
-                return Ok(ReadResult::Timeout);
+                return EngineResult::Timeout;
             }
 
-            let read_buf = self.stdout.fill_buf()?;
-            let read_buf_len = read_buf.len();
-            self.read_buf.extend_from_slice(read_buf);
-            self.stdout.consume(read_buf_len);
+            let count = {
+                self.read_buf.reserve(4096);
+                let old_len = self.read_buf.len();
+                let spare_cap = self.read_buf.spare_capacity_mut();
+                let spare_cap = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        spare_cap.as_mut_ptr() as *mut u8,
+                        spare_cap.len(),
+                    )
+                };
+                match self.stdout.read(spare_cap) {
+                    Err(err) => return EngineResult::Err(err),
+                    Ok(count) => {
+                        unsafe { self.read_buf.set_len(old_len + count) };
+                        count
+                    }
+                }
+            };
+
+            if count == 0 {
+                return EngineResult::Disconnected;
+            }
 
             while let Some(i) = memchr::memchr(b'\n', self.read_buf.as_slice()) {
                 let line = {
                     let line = self.read_buf.drain(0..(i + 1));
                     let Ok(line) = str::from_utf8(line.as_slice()) else {
-                        return Err(std::io::Error::new(
+                        return EngineResult::Err(std::io::Error::new(
                             std::io::ErrorKind::InvalidData,
                             "Received Invalid UTF-8",
                         ));
@@ -343,7 +392,7 @@ impl Engine {
 
                 match f(line) {
                     ReadState::Continue => {}
-                    ReadState::Stop => return Ok(ReadResult::Ok),
+                    ReadState::Stop => return EngineResult::Ok(()),
                 }
             }
         }
