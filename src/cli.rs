@@ -272,13 +272,30 @@ pub fn parse() -> Option<CliOptions> {
                 return None;
             }
 
+            "-variant" => {
+                let Some(value) = it.next() else {
+                    eprintln!("No value for -variant");
+                    return None;
+                };
+                if value != "standard" {
+                    eprintln!("Unrecognised value of -variant");
+                    return None;
+                }
+            }
+
             "-event" => {
-                let Some(value) = it.next() else { break };
+                let Some(value) = it.next() else {
+                    eprintln!("No value for -event");
+                    return None;
+                };
                 options.meta.event_name = value.to_string();
             }
 
             "-site" => {
-                let Some(value) = it.next() else { break };
+                let Some(value) = it.next() else {
+                    eprintln!("No value for -site");
+                    return None;
+                };
                 options.meta.site_name = value.to_string();
             }
 
