@@ -2,14 +2,11 @@ use crate::shogi;
 use log::{error, info, trace};
 use std::{
     env,
-    io::{Read, Result, Write},
+    io::{Result, Write},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     time::Duration,
 };
 use wait_timeout::ChildExt;
-
-#[cfg(unix)]
-use std::os::fd::AsRawFd;
 
 #[derive(Debug, Clone, Default)]
 pub enum Score {
@@ -339,6 +336,9 @@ impl Engine {
     where
         F: FnMut(String) -> ReadState,
     {
+        use std::io::Read;
+        use std::os::fd::AsRawFd;
+
         let timeout_ms = match timeout {
             Some(timeout) => timeout.as_millis().clamp(0, i32::MAX as u128) as i32,
             None => -1,
@@ -387,25 +387,126 @@ impl Engine {
                 return EngineResult::Disconnected;
             }
 
-            while let Some(i) = memchr::memchr(b'\n', self.read_buf.as_slice()) {
-                let line = {
-                    let line = self.read_buf.drain(0..(i + 1));
-                    let Ok(line) = str::from_utf8(line.as_slice()) else {
-                        return EngineResult::Err(std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
-                            "Received Invalid UTF-8",
-                        ));
-                    };
-                    line.to_string()
+            match self.process_read_buf(&mut f) {
+                Ok(ReadState::Continue) => {}
+                Ok(ReadState::Stop) => return EngineResult::Ok(()),
+                Err(err) => return EngineResult::Err(err),
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    pub fn read_with_timeout<F>(&mut self, timeout: Option<Duration>, mut f: F) -> EngineResult<()>
+    where
+        F: FnMut(String) -> ReadState,
+    {
+        use std::os::windows::io::AsRawHandle;
+        use windows::{
+            Win32::Foundation::*, Win32::Storage::FileSystem::*, Win32::System::IO::*,
+            Win32::System::Threading::*,
+        };
+
+        let timeout_ms = match timeout {
+            Some(timeout) => timeout.as_millis().clamp(0, i32::MAX as u128) as u32,
+            None => INFINITE,
+        };
+
+        loop {
+            unsafe {
+                let handle = HANDLE(self.stdout.as_raw_handle());
+
+                let mut overlapped = OVERLAPPED::default();
+                overlapped.hEvent =
+                    CreateEventW(None, true, false, None).expect("Could not create event");
+
+                let old_read_buf_len = self.read_buf.len();
+
+                let write_buf = {
+                    self.read_buf.reserve(4096);
+                    let spare_cap = self.read_buf.spare_capacity_mut();
+                    std::slice::from_raw_parts_mut(
+                        spare_cap.as_mut_ptr() as *mut u8,
+                        spare_cap.len(),
+                    )
                 };
 
-                trace!("{} > {}", self.name(), line.trim());
+                if let Err(err) = ReadFile(handle, Some(write_buf), None, Some(&mut overlapped))
+                    && err.code() != ERROR_IO_PENDING.into()
+                {
+                    let _ = CloseHandle(overlapped.hEvent);
+                    return EngineResult::Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("ReadFile Failed: {:?}", err),
+                    ));
+                }
 
-                match f(line) {
-                    ReadState::Continue => {}
-                    ReadState::Stop => return EngineResult::Ok(()),
+                match WaitForSingleObject(overlapped.hEvent, timeout_ms) {
+                    WAIT_TIMEOUT => {
+                        let _ = CancelIo(handle);
+                        let _ = CloseHandle(overlapped.hEvent);
+                        return EngineResult::Timeout;
+                    }
+                    WAIT_OBJECT_0 => {}
+                    _ => {
+                        let _ = CloseHandle(overlapped.hEvent);
+                        return EngineResult::Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "WaitForSingleObject Failed",
+                        ));
+                    }
+                }
+
+                let mut bytes_read: u32 = 0;
+                if let Err(err) = GetOverlappedResult(handle, &overlapped, &mut bytes_read, false) {
+                    let _ = CloseHandle(overlapped.hEvent);
+                    return EngineResult::Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("GetOverlappedResult Failed: {:?}", err),
+                    ));
+                }
+
+                let _ = CloseHandle(overlapped.hEvent);
+
+                self.read_buf
+                    .set_len(old_read_buf_len + bytes_read as usize);
+
+                if bytes_read == 0 {
+                    return EngineResult::Disconnected;
+                }
+
+                match self.process_read_buf(&mut f) {
+                    Ok(ReadState::Continue) => {}
+                    Ok(ReadState::Stop) => return EngineResult::Ok(()),
+                    Err(err) => return EngineResult::Err(err),
                 }
             }
         }
+    }
+
+    fn process_read_buf<F>(&mut self, mut f: F) -> Result<ReadState>
+    where
+        F: FnMut(String) -> ReadState,
+    {
+        while let Some(i) = memchr::memchr(b'\n', self.read_buf.as_slice()) {
+            let line = {
+                let line = self.read_buf.drain(0..(i + 1));
+                let Ok(line) = str::from_utf8(line.as_slice()) else {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Received Invalid UTF-8",
+                    ));
+                };
+                line.to_string()
+            };
+
+            trace!("{} > {}", self.name(), line.trim());
+
+            match f(line) {
+                ReadState::Continue => {}
+                ReadState::Stop => return Ok(ReadState::Stop),
+            }
+        }
+
+        Ok(ReadState::Continue)
     }
 }
