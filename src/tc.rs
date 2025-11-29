@@ -158,10 +158,11 @@ impl fmt::Display for TimeControl {
 pub struct EngineTime {
     tc: TimeControl,
     remaining: Duration,
+    time_margin: Duration,
 }
 
 impl EngineTime {
-    pub fn new(tc: TimeControl) -> EngineTime {
+    pub fn new(tc: TimeControl, time_margin: Duration) -> EngineTime {
         EngineTime {
             tc,
             remaining: match tc {
@@ -171,6 +172,7 @@ impl EngineTime {
                 TimeControl::Byoyomi { base, byoyomi: _ } => base,
                 TimeControl::Fischer { base, increment } => base + increment,
             },
+            time_margin,
         }
     }
 
@@ -192,7 +194,7 @@ impl EngineTime {
         match self.tc {
             TimeControl::None | TimeControl::Nodes(_) => StepResult::Ok,
             TimeControl::MoveTime(max_duration) => {
-                if duration > max_duration {
+                if duration > max_duration + self.time_margin {
                     StepResult::TimeElapsed
                 } else {
                     StepResult::Ok
@@ -207,7 +209,7 @@ impl EngineTime {
                     self.remaining -= duration;
                     Duration::ZERO
                 };
-                if duration > byoyomi {
+                if duration > byoyomi + self.time_margin {
                     StepResult::TimeElapsed
                 } else {
                     StepResult::Ok
@@ -216,9 +218,12 @@ impl EngineTime {
             TimeControl::Fischer { base: _, increment } => {
                 if self.remaining < duration {
                     self.remaining = Duration::ZERO;
-                    return StepResult::TimeElapsed;
+                    if self.remaining + self.time_margin < duration {
+                        return StepResult::TimeElapsed;
+                    }
+                } else {
+                    self.remaining -= duration;
                 }
-                self.remaining -= duration;
                 self.remaining += increment;
                 StepResult::Ok
             }
@@ -226,7 +231,7 @@ impl EngineTime {
     }
 
     pub fn bestmove_timeout(&self) -> Option<Duration> {
-        let timeout_margin = 50 * Duration::MILLISECOND;
+        let timeout_margin = 50 * Duration::MILLISECOND + self.time_margin;
         match self.tc {
             TimeControl::None | TimeControl::Nodes(_) => None,
             TimeControl::MoveTime(duration) => Some(timeout_margin + duration),

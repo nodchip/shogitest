@@ -145,6 +145,7 @@ impl Default for CliOptions {
 pub struct EngineOptions {
     pub builder: engine::EngineBuilder,
     pub time_control: tc::TimeControl,
+    pub time_margin: Duration,
 }
 
 #[derive(Debug, Clone)]
@@ -217,6 +218,12 @@ fn parse_engine_option(engine: &mut EngineOptions, name: &str, value: &str) {
                 }
             }
         }
+        "timemargin" => match value.parse::<u64>() {
+            Ok(value) => engine.time_margin = Duration::from_millis(value),
+            Err(_) => {
+                eprintln!("Expected number for timemargin option");
+            }
+        },
         name if let Some(optionname) = name.strip_prefix("option.") => {
             engine
                 .builder

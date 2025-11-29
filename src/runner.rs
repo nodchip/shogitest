@@ -225,8 +225,8 @@ fn run_match(
     };
 
     let mut engine_time = [
-        tc::EngineTime::new(engine_options[ticket.engines[0]].time_control),
-        tc::EngineTime::new(engine_options[ticket.engines[1]].time_control),
+        tc::EngineTime::new(engine_options[ticket.engines[0]].time_control, engine_options[ticket.engines[0]].time_margin),
+        tc::EngineTime::new(engine_options[ticket.engines[1]].time_control, engine_options[ticket.engines[1]].time_margin),
     ];
 
     for i in 0..2 {
