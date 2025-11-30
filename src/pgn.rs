@@ -57,7 +57,7 @@ impl PgnWriter {
             Self::write_header(f, "SetUp", "1")?;
         }
         Self::write_header(f, "PlyCount", &match_result.moves.len().to_string())?;
-        Self::write_header(f, "Termination", match_result.outcome.to_string())?;
+        Self::write_header(f, "Termination", match_result.outcome.to_pgn_termination_string())?;
         Self::write_header(f, "GameStartTime", &match_result.game_start.to_rfc3339())?;
         Self::write_header(
             f,
@@ -76,7 +76,7 @@ impl PgnWriter {
 
         writeln!(f)?;
 
-        for m in &match_result.moves {
+        for (i, m) in match_result.moves.iter().enumerate() {
             let mstr = if m.mstr.is_empty() {
                 "output-was-empty"
             } else {
@@ -112,7 +112,10 @@ impl PgnWriter {
                 comment = format!("{comment} latency={latency}s");
             }
             comment = format!("{comment} t={}s", m.measured_time.as_secs_f64());
-            writeln!(f, "{mstr} {{{comment}}}",)?;
+            if i == match_result.moves.len() - 1 {
+                comment = format!("{comment}, {}", match_result.outcome.to_string());
+            }
+            writeln!(f, "{mstr} {{{comment}}}")?;
         }
 
         writeln!(f, "{result_str}")?;

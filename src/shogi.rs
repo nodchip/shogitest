@@ -963,12 +963,28 @@ impl GameOutcome {
             GameOutcome::Resignation(Color::Gote) => "Gote resigns",
             GameOutcome::LossByClock(Color::Sente) => "Sente loses on time",
             GameOutcome::LossByClock(Color::Gote) => "Gote loses on time",
-            GameOutcome::LossByDisconnection(Color::Sente) => "Sente disconnects",
-            GameOutcome::LossByDisconnection(Color::Gote) => "Gote disconnects",
+            GameOutcome::LossByDisconnection(_) => "abandoned",
             GameOutcome::DrawByMoveLimit => "Draw by adjudication: Reached move limit",
             GameOutcome::DrawByAdjudication => "Draw by adjudication",
             GameOutcome::WinByAdjudication(Color::Sente) => "Sente wins by adjudication",
             GameOutcome::WinByAdjudication(Color::Gote) => "Gote wins by adjudication",
+        }
+    }
+
+    pub fn to_pgn_termination_string(self) -> &'static str {
+        match self {
+            GameOutcome::Undetermined => "undetermined",
+            GameOutcome::DrawBySennichite => "normal",
+            GameOutcome::Checkmated(_) => "normal",
+            GameOutcome::WinInImpasse(_) => "normal",
+            GameOutcome::LossByPerpetual(_) => "illegal move",
+            GameOutcome::LossByIllegal(_) => "illegal move",
+            GameOutcome::Resignation(_) => "normal",
+            GameOutcome::LossByClock(_) => "time forfeit",
+            GameOutcome::LossByDisconnection(_) => "abandoned",
+            GameOutcome::DrawByMoveLimit => "adjudication",
+            GameOutcome::DrawByAdjudication => "adjudication",
+            GameOutcome::WinByAdjudication(_) => "adjudication",
         }
     }
 }
