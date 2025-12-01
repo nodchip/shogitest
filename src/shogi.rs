@@ -973,7 +973,7 @@ impl GameOutcome {
 
     pub fn to_pgn_termination_string(self) -> &'static str {
         match self {
-            GameOutcome::Undetermined => "undetermined",
+            GameOutcome::Undetermined => "unterminated",
             GameOutcome::DrawBySennichite => "normal",
             GameOutcome::Checkmated(_) => "normal",
             GameOutcome::WinInImpasse(_) => "normal",

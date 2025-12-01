@@ -44,7 +44,7 @@ impl PgnWriter {
         };
 
         Self::write_header(f, "Event", &self.meta.event_name)?;
-        Self::write_header(f, "Event", &self.meta.site_name)?;
+        Self::write_header(f, "Site", &self.meta.site_name)?;
         Self::write_header(f, "Date", &date_str)?;
         Self::write_header(f, "Round", &ticket.id.to_string())?;
         Self::write_header(f, "Black", &self.engine_names[ticket.engines[0]])?;
