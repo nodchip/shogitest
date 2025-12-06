@@ -12,6 +12,6 @@ all:
 > @exit 1
 
 openbench:
-> cargo rustc --release -- -C target-cpu=native --emit link=$(EXE)
+> cargo +nightly rustc --release -- -C target-cpu=native --emit link=$(EXE)
 
 .PHONY: all openbench
