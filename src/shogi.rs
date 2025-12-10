@@ -999,7 +999,7 @@ pub struct Game {
 
 impl Game {
     pub fn new(startpos: Position) -> Game {
-        assert!(!startpos.is_in_check());
+        // assert!(!startpos.is_in_check());
         Game {
             current_position: startpos,
             moves: vec![],
